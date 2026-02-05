@@ -181,7 +181,8 @@ export default function Home() {
             <div
               key={board.id}
               onClick={() => navigate(`/taskmanager/${board.id}`)}
-              className="relative w-[80%] border p-4 rounded shadow flex flex-col gap-2 cursor-pointer hover:bg-gray-50"
+             className="relative border p-4 rounded shadow flex flex-col gap-2 cursor-pointer hover:bg-gray-50 w-full md:w-[80%]"
+
             >
               <span className="font-medium text-2xl">{board.name}</span>
               <span className="text-gray-400 text-sm">• {board.members} members</span>

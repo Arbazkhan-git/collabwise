@@ -7,12 +7,14 @@ import Taskmanager from './components/Taskmanager';
 
 function App() {
   return (
-    <Routes>
-      <Route path="/" element={<Navigate to="/loginuser" />} />
-      <Route path="/loginuser" element={<Loginuser />} />
-      <Route path="/home" element={<Home />} />
-      <Route path="/taskmanager/:boardId" element={<Taskmanager />} />
-    </Routes>
+    <>
+      <Routes>
+        <Route path="/" element={<Navigate to="/loginuser" />} />
+        <Route path="/loginuser" element={<Loginuser />} />
+        <Route path="/home" element={<Home />} />
+        <Route path="/taskmanager/:boardId" element={<Taskmanager />} />
+      </Routes>
+    </>
   );
 }
 

@@ -71,7 +71,7 @@ const navigate=useNavigate()
         className="flex flex-col items-center"
       >
         <input
-          className="border shadow-lg rounded-2xl pl-3 w-1/2 h-10 m-3"
+          className="border shadow-lg rounded-2xl pl-3 w-70 h-10 m-3"
           type="email"
           placeholder="Email"
           value={email}
@@ -79,7 +79,7 @@ const navigate=useNavigate()
         />
 
         <input
-          className="border shadow-lg rounded-2xl pl-3 w-1/2 h-10 m-3"
+          className="border shadow-lg rounded-2xl pl-3 w-70 h-10 m-3"
           type="password"
           placeholder="Password"
           value={password}

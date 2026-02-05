@@ -101,8 +101,8 @@ export default function Taskmanager() {
   const inProgressTasks = tasks.filter(t => t.status === "progress");
   const doneTasks = tasks.filter(t => t.status === "done");
 
-  return (
-    <div className="p-5">
+  return ( 
+    <div className=" ">
       <div className="flex w-full items-center h-20 justify-between shadow-md mb-8 px-5">
         <div className="flex items-center gap-3">
         <p

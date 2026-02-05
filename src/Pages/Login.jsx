@@ -31,7 +31,7 @@ const navigate=useNavigate()
           email.trim(),
           password.trim()
         );
-        alert("Login successful");
+        
       } else {
         await createUserWithEmailAndPassword(
           auth,

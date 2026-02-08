@@ -1,9 +1,8 @@
 import React from 'react';
 import './App.css';
-import Home from './Pages/Home';
+import Dashboard from './Pages/Dashboard';
 import Loginuser from './Pages/Login';
 import { Route, Routes, Navigate } from 'react-router-dom';
-import Taskmanager from './components/Taskmanager';
 
 function App() {
   return (
@@ -11,8 +10,8 @@ function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/loginuser" />} />
         <Route path="/loginuser" element={<Loginuser />} />
-        <Route path="/home" element={<Home />} />
-        <Route path="/taskmanager/:boardId" element={<Taskmanager />} />
+        <Route path="/home" element={<Dashboard />} />
+        <Route path="/dashboard" element={<Dashboard />} />
       </Routes>
     </>
   );

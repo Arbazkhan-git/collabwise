@@ -139,12 +139,18 @@ export default function Home() {
 
 
 
-<div className="flex">
+<div className="flex flex-wrap items-center gap-3">
       <button
         onClick={() => setShowInput(!showInput)}
         className="bg-blue-600 m-5 px-5 py-2 h-10 text-xl text-white rounded"
       >
         {showInput ? "Close Board Form" : "Create Board"}
+      </button>
+      <button
+        onClick={() => navigate("/summary")}
+        className="bg-green-600 m-5 px-5 py-2 h-10 text-xl text-white rounded"
+      >
+        Summary
       </button>
 
 

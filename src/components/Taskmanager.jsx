@@ -21,9 +21,9 @@ export default function Taskmanager() {
   const [tasks, setTasks] = useState([]);
   const [taskText, setTaskText] = useState("");
   const navigate = useNavigate();
-  const { boardId } = useParams(); // get current board id from URL
+  const { boardId } = useParams();  
 
-  // Auth listener
+   
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
       if (!currentUser) {

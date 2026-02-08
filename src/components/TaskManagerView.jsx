@@ -5,14 +5,16 @@ import {
   addDoc,
   deleteDoc,
   doc,
+  getDoc,
   query,
   where,
   onSnapshot,
   updateDoc,
   arrayUnion,
-  arrayRemove
+  arrayRemove,
+  getDocs
 } from "firebase/firestore";
-import { ArrowLeft, Plus, GripVertical, X, CheckCircle2, Circle, Clock, MessageSquare, Send } from "lucide-react";
+import { ArrowLeft, Plus, GripVertical, X, CheckCircle2, Circle, Clock, MessageSquare, Send, UserPlus, Users } from "lucide-react";
 
 export default function TaskManagerView({ boardId, user, onBack }) {
   const [loading, setLoading] = useState(true);
@@ -22,19 +24,55 @@ export default function TaskManagerView({ boardId, user, onBack }) {
   const [draggedTask, setDraggedTask] = useState(null);
   const [dragOverColumn, setDragOverColumn] = useState(null);
   const [expandedTask, setExpandedTask] = useState(null);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviting, setInviting] = useState(false);
+  const [teammates, setTeammates] = useState([]); // { uid, email }[]
+  const [teamListOpen, setTeamListOpen] = useState(false);
 
-  // Load user boards
+  // Load boards where user is a member
   useEffect(() => {
     if (!user) return;
-
-    const q = query(collection(db, "boards"), where("userId", "==", user.uid));
+    const q = query(
+      collection(db, "boards"),
+      where("members", "array-contains", user.uid)
+    );
     const unsubscribeBoards = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      const data = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
       setBoards(data);
     });
-
     return () => unsubscribeBoards();
   }, [user]);
+
+  // Resolve member UIDs to emails for current board
+  useEffect(() => {
+    if (!boardId || !boards.length) {
+      setTeammates([]);
+      return;
+    }
+    const board = boards.find((b) => b.id === boardId);
+    const memberUids = board?.members || [];
+    if (memberUids.length === 0) {
+      setTeammates([]);
+      return;
+    }
+    let cancelled = false;
+    const load = async () => {
+      const list = [];
+      for (const uid of memberUids) {
+        try {
+          const snap = await getDoc(doc(db, "users", uid));
+          const data = snap.data();
+          const email = data?.email || "(unknown)";
+          list.push({ uid, email });
+        } catch {
+          list.push({ uid, email: "(unknown)" });
+        }
+      }
+      if (!cancelled) setTeammates(list);
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [boardId, boards]);
 
   // Load tasks for current board
   useEffect(() => {
@@ -42,7 +80,6 @@ export default function TaskManagerView({ boardId, user, onBack }) {
 
     const q = query(
       collection(db, "tasks"),
-      where("userId", "==", user.uid),
       where("boardId", "==", boardId)
     );
 
@@ -52,9 +89,61 @@ export default function TaskManagerView({ boardId, user, onBack }) {
       setLoading(false);
     });
 
+
     return () => unsubscribeTasks();
   }, [user, boardId]);
 
+  // Only the board creator (owner) can remove members
+  const currentBoard = boards.find((b) => b.id === boardId);
+  const isBoardOwner = currentBoard && (currentBoard.ownerId === user?.uid || currentBoard.userId === user?.uid);
+
+  const removeMember = async (memberUid) => {
+    if (!isBoardOwner || memberUid === user?.uid) return; // can't remove yourself
+    try {
+      await updateDoc(doc(db, "boards", boardId), {
+        members: arrayRemove(memberUid)
+      });
+    } catch (err) {
+      console.error(err);
+      alert("Failed to remove member");
+    }
+  };
+
+  const inviteMember = async () => {
+    const emailLower = inviteEmail.trim().toLowerCase();
+    if (!emailLower) return;
+
+    setInviting(true);
+    try {
+      const q = query(
+        collection(db, "users"),
+        where("email", "==", emailLower)
+      );
+  
+      const snap = await getDocs(q);
+  
+      if (snap.empty) {
+        alert("User not found");
+        setInviting(false);
+        return;
+      }
+  
+      const invitedUser = snap.docs[0];
+  
+      const invitedUid = invitedUser.data()?.uid || invitedUser.id;
+      await updateDoc(doc(db, "boards", boardId), {
+        members: arrayUnion(invitedUid)
+      });
+  
+      setInviteEmail("");
+      alert("Teammate added 🎉");
+    } catch (err) {
+      console.error(err);
+      alert("Invite failed");
+    }
+  
+    setInviting(false);
+  };
   const addTask = async () => {
     if (!taskText.trim()) return;
 
@@ -120,20 +209,161 @@ export default function TaskManagerView({ boardId, user, onBack }) {
 
   return (
     <div className="p-4 sm:p-5 lg:p-6 bg-gradient-to-br from-gray-50 to-gray-100 min-h-screen">
-      <div className="flex flex-col sm:flex-row w-full items-start sm:items-center justify-between shadow-md mb-4 sm:mb-6 px-4 sm:px-6 py-3 sm:py-4 bg-white rounded-xl border border-gray-200 gap-3">
-        <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
-          <button
-            onClick={onBack}
-            className="font-medium text-gray-500 flex items-center gap-2 hover:text-gray-700 cursor-pointer transition-colors flex-shrink-0"
-          >
-            <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
-            <span className="hidden sm:inline">Boards</span>
-          </button>
-          <b className="text-gray-300 hidden sm:inline">|</b>
-          <span className="font-semibold text-base sm:text-lg text-gray-800 truncate">{boardName}</span>
+      <div className="shadow-md mb-4 sm:mb-6 bg-white rounded-xl border border-gray-200 overflow-visible">
+        {/* Top bar: back, board name, task count */}
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+            <button
+              onClick={onBack}
+              className="font-medium text-gray-500 flex items-center gap-2 hover:text-gray-700 cursor-pointer transition-colors flex-shrink-0"
+            >
+              <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+              <span className="hidden sm:inline">Boards</span>
+            </button>
+            <b className="text-gray-300 hidden sm:inline">|</b>
+            <span className="font-semibold text-base sm:text-lg text-gray-800 truncate">{boardName}</span>
+          </div>
+          <span className="text-xs sm:text-sm text-gray-500 flex-shrink-0">
+            {tasks.length} {tasks.length === 1 ? "task" : "tasks"}
+          </span>
         </div>
-        <div className="text-xs sm:text-sm text-gray-500 flex-shrink-0">
-          {tasks.length} {tasks.length === 1 ? 'task' : 'tasks'}
+
+        {/* Team + single invite row */}
+        <div className="px-4 sm:px-6 py-4 bg-gray-50/80 border-b border-gray-100">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex items-center gap-2 min-w-0">
+              <Users className="w-4 h-4 text-gray-500 flex-shrink-0" />
+              <span className="text-sm font-medium text-gray-700">Team</span>
+            </div>
+            {teammates.length > 0 && (
+              <>
+                {teammates.length <= 2 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {teammates.map((t) => (
+                      <div
+                        key={t.uid}
+                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-gray-200 shadow-sm text-sm text-gray-700 group"
+                      >
+                        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-700 font-semibold text-xs">
+                          {(t.email || "?")[0].toUpperCase()}
+                        </span>
+                        <span className="truncate max-w-[180px] sm:max-w-[220px]" title={t.email}>
+                          {t.email}
+                        </span>
+                        {isBoardOwner && t.uid !== user?.uid && (
+                          <button
+                            type="button"
+                            onClick={() => removeMember(t.uid)}
+                            className="ml-0.5 p-0.5 rounded text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                            title="Remove from board"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="relative inline-block overflow-visible">
+                  <button
+                    type="button"
+                    onClick={() => setTeamListOpen((o) => !o)}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-gray-200 shadow-sm hover:shadow-md hover:border-blue-200 transition-all duration-200 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-1"
+                  >
+                    <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 text-white text-xs font-bold">
+                      {teammates.length}
+                    </span>
+                
+                    <span>Teammates</span>
+                
+                    <svg
+                      className={`w-4 h-4 text-gray-400 transition-transform ${
+                        teamListOpen ? "rotate-180" : ""
+                      }`}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                
+                  {teamListOpen && (
+                    <>
+                      {/* Click-outside backdrop */}
+                      <div
+                        className="fixed inset-0 z-[9998]"
+                        onClick={() => setTeamListOpen(false)}
+                        aria-hidden
+                      />
+                
+                      {/* Dropdown */}
+                      <div className="absolute left-0 top-full mt-2 z-[9999] w-72 rounded-xl bg-white border border-gray-200 shadow-xl">
+                        <div className="px-4 py-3 bg-gradient-to-r from-gray-50 to-white border-b border-gray-100">
+                          <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+                            Team members
+                          </p>
+                          <p className="text-sm text-gray-700 mt-0.5">
+                            {teammates.length} members
+                          </p>
+                        </div>
+                
+                        <div className="max-h-64 overflow-y-auto py-2">
+                          {teammates.map((t) => (
+                            <div
+                              key={t.uid}
+                              className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors"
+                            >
+                              <span className="flex items-center justify-center w-9 h-9 rounded-full bg-gradient-to-br from-blue-100 to-blue-50 text-blue-700 font-semibold text-sm flex-shrink-0">
+                                {(t.email || "?")[0].toUpperCase()}
+                              </span>
+                
+                              <span
+                                className="flex-1 min-w-0 truncate text-sm text-gray-800"
+                                title={t.email}
+                              >
+                                {t.email}
+                              </span>
+                
+                              {isBoardOwner && t.uid !== user?.uid && (
+                                <button
+                                  type="button"
+                                  onClick={() => removeMember(t.uid)}
+                                  className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors flex-shrink-0"
+                                  title="Remove from board"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+                
+                )}
+              </>
+            )}
+            <div className="flex items-center gap-2 sm:ml-auto flex-shrink-0">
+              <UserPlus className="w-4 h-4 text-gray-500 hidden sm:block" />
+              <input
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                placeholder="Add by email"
+                className="border border-gray-300 px-3 py-2 rounded-lg text-sm w-44 sm:w-52 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-400"
+                onKeyDown={(e) => e.key === "Enter" && inviteMember()}
+              />
+              <button
+                onClick={inviteMember}
+                disabled={inviting}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors shadow-sm"
+              >
+                {inviting ? "Adding…" : "Add"}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -172,6 +402,10 @@ export default function TaskManagerView({ boardId, user, onBack }) {
           dragOverColumn={dragOverColumn}
           icon={<Clock className="w-4 h-4" />}
           color="blue"
+          user={user}
+          boardId={boardId}
+          expandedTask={expandedTask}
+          setExpandedTask={setExpandedTask}
         />
 
         <TaskColumn
@@ -187,6 +421,10 @@ export default function TaskManagerView({ boardId, user, onBack }) {
           dragOverColumn={dragOverColumn}
           icon={<CheckCircle2 className="w-4 h-4" />}
           color="green"
+          user={user}
+          boardId={boardId}
+          expandedTask={expandedTask}
+          setExpandedTask={setExpandedTask}
         />
       </div>
     </div>
@@ -241,6 +479,10 @@ function TaskColumn({
   const colors = colorClasses[color] || colorClasses.yellow;
   const isDragOver = dragOverColumn === status;
 
+
+
+
+  
   return (
     <div 
       className={`w-full lg:flex-1 border-2 rounded-xl shadow-lg bg-white flex flex-col transition-all duration-200 min-h-[300px] ${

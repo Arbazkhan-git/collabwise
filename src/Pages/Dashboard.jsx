@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { auth, db } from "../firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { Clock, Grid, Calendar, BarChart3, LayoutDashboard, History, Menu, X as XIcon, ListTodo } from "lucide-react";
 import BoardsView from "../components/BoardsView";
@@ -10,15 +10,25 @@ import TaskManagerView from "../components/TaskManagerView";
 import CalendarView from "../components/CalendarView";
 import AllTasksView from "../components/AllTasksView";
 
+const VALID_VIEWS = ["boards", "summary", "calendar", "taskmanager", "alltasks"];
+
 export default function Dashboard() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [currentView, setCurrentView] = useState("boards");
-  const [selectedBoardId, setSelectedBoardId] = useState(null);
   const [openProfile, setOpenProfile] = useState(false);
+
+  // Derive view and board from URL so reload keeps the same place
+  const viewFromUrl = searchParams.get("view");
+  const boardIdFromUrl = searchParams.get("boardId");
+  const currentView = VALID_VIEWS.includes(viewFromUrl) ? viewFromUrl : "boards";
+  const selectedBoardId =
+    currentView === "taskmanager" && boardIdFromUrl ? boardIdFromUrl : null;
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [recentItems, setRecentItems] = useState([]);
   const [historyItems, setHistoryItems] = useState([]);
+  const [recentOpen, setRecentOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [allTasks, setAllTasks] = useState([]);
   const [allBoards, setAllBoards] = useState([]);
   const profileRef = useRef(null);
@@ -98,12 +108,16 @@ export default function Dashboard() {
     });
   };
 
+  const updateUrl = (view, boardId = null) => {
+    const params = new URLSearchParams();
+    if (view && view !== "boards") params.set("view", view);
+    if (boardId) params.set("boardId", boardId);
+    setSearchParams(params, { replace: true });
+  };
+
   const handleViewChange = (view, boardId = null) => {
-    setCurrentView(view);
-    if (boardId) {
-      setSelectedBoardId(boardId);
-    }
-    setSidebarOpen(false);  
+    updateUrl(view, boardId || undefined);
+    setSidebarOpen(false);
     const viewNames = {
       boards: "Boards",
       summary: "Summary",
@@ -115,12 +129,12 @@ export default function Dashboard() {
   };
 
   const handleBoardClick = (boardId, boardName) => {
-    setSelectedBoardId(boardId);
-    setCurrentView("taskmanager");
+    updateUrl("taskmanager", boardId);
     if (boardName) {
       addToRecent({ id: boardId, type: "board", name: boardName });
       addToHistory({ id: boardId, type: "board", name: boardName });
     }
+    setSidebarOpen(false);
   };
 
   const handleRecentClick = (item) => {
@@ -197,49 +211,63 @@ export default function Dashboard() {
 
         {/* Navigation */}
         <div className="flex-1 overflow-y-auto p-2">
-          {/* Recent */}
+          {/* Recent — details only when clicked */}
           <div className="mb-4">
-            <div className="flex items-center gap-2 px-2 py-1 text-xs font-semibold text-gray-500 uppercase">
+            <button
+              onClick={() => setRecentOpen((o) => !o)}
+              className="w-full flex items-center gap-2 px-2 py-1 text-xs font-semibold text-gray-500 uppercase hover:bg-gray-100 rounded"
+            >
               <Clock className="w-4 h-4" />
               Recent
-            </div>
-            {recentItems.length === 0 ? (
-              <p className="px-2 py-1 text-xs text-gray-400 italic">No recent items</p>
-            ) : (
-              <div className="space-y-1">
-                {recentItems.map((item, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => handleRecentClick(item)}
-                    className="w-full text-left px-2 py-1.5 text-sm hover:bg-gray-200 rounded flex items-center gap-2"
-                  >
-                    <span className="truncate">{item.name}</span>
-                  </button>
-                ))}
-              </div>
+            </button>
+            {recentOpen && (
+              <>
+                {recentItems.length === 0 ? (
+                  <p className="px-2 py-1 text-xs text-gray-400 italic">No recent items</p>
+                ) : (
+                  <div className="space-y-1 mt-1">
+                    {recentItems.map((item, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => handleRecentClick(item)}
+                        className="w-full text-left px-2 py-1.5 text-sm hover:bg-gray-200 rounded flex items-center gap-2"
+                      >
+                        <span className="truncate">{item.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
 
-          {/* History */}
+          {/* History — details only when clicked */}
           <div className="mb-4">
-            <div className="flex items-center gap-2 px-2 py-1 text-xs font-semibold text-gray-500 uppercase">
+            <button
+              onClick={() => setHistoryOpen((o) => !o)}
+              className="w-full flex items-center gap-2 px-2 py-1 text-xs font-semibold text-gray-500 uppercase hover:bg-gray-100 rounded"
+            >
               <History className="w-4 h-4" />
               History
-            </div>
-            {historyItems.length === 0 ? (
-              <p className="px-2 py-1 text-xs text-gray-400 italic">No history</p>
-            ) : (
-              <div className="space-y-1">
-                {historyItems.map((item, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => handleHistoryClick(item)}
-                    className="w-full text-left px-2 py-1.5 text-sm hover:bg-gray-200 rounded flex items-center gap-2"
-                  >
-                    <span className="truncate">{item.name}</span>
-                  </button>
-                ))}
-              </div>
+            </button>
+            {historyOpen && (
+              <>
+                {historyItems.length === 0 ? (
+                  <p className="px-2 py-1 text-xs text-gray-400 italic">No history</p>
+                ) : (
+                  <div className="space-y-1 mt-1">
+                    {historyItems.map((item, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => handleHistoryClick(item)}
+                        className="w-full text-left px-2 py-1.5 text-sm hover:bg-gray-200 rounded flex items-center gap-2"
+                      >
+                        <span className="truncate">{item.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
 

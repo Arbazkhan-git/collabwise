@@ -56,7 +56,7 @@ export default function Dashboard() {
     return () => unsubscribeAuth();
   }, [navigate]);
 
-  // Load all tasks and boards for sidebar
+  
   useEffect(() => {
     if (!user) return;
 
@@ -103,7 +103,7 @@ export default function Dashboard() {
     if (boardId) {
       setSelectedBoardId(boardId);
     }
-    setSidebarOpen(false); // Close sidebar on mobile when navigating
+    setSidebarOpen(false);  
     const viewNames = {
       boards: "Boards",
       summary: "Summary",
@@ -163,13 +163,16 @@ export default function Dashboard() {
     <div className="flex h-screen overflow-hidden bg-gray-50">
       {/* Mobile Overlay */}
       {sidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+  <div
+    onClick={() => setSidebarOpen(false)}
+    className="fixed inset-0 z-40 lg:hidden
+               bg-black/30
+               backdrop-blur-md
+               supports-[backdrop-filter]:bg-black/20"
+  />
+)}
 
-      {/* Left Sidebar */}
+      
       <div className={`
         fixed lg:static inset-y-0 left-0 z-50
         w-64 bg-white lg:bg-gray-50 border-r border-gray-200 

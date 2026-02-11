@@ -171,14 +171,15 @@ export default function ChatView({ user }) {
         },
         { merge: true }
       );
-
-      // Do not auto-open; chat will appear in the list on both accounts
+ 
       setConnectError("");
     } catch (err) {
       console.error(err);
       setConnectError("Failed to connect. Please try again.");
     }
     setConnecting(false);
+    setFriendName("");
+    setFriendEmail("");
   };
 
   const handleSend = async () => {

@@ -3,14 +3,15 @@ import { auth, db } from "../firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
-import { Clock, Grid, Calendar, BarChart3, LayoutDashboard, History, Menu, X as XIcon, ListTodo } from "lucide-react";
+import { Clock, Grid, Calendar, BarChart3, LayoutDashboard, History, Menu, X as XIcon, ListTodo, MessageCircle } from "lucide-react";
 import BoardsView from "../components/BoardsView";
 import SummaryView from "../components/SummaryView";
 import TaskManagerView from "../components/TaskManagerView";
 import CalendarView from "../components/CalendarView";
 import AllTasksView from "../components/AllTasksView";
+import ChatView from "../components/ChatView";
 
-const VALID_VIEWS = ["boards", "summary", "calendar", "taskmanager", "alltasks"];
+const VALID_VIEWS = ["boards", "summary", "calendar", "taskmanager", "alltasks", "chat"];
 
 export default function Dashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -33,6 +34,21 @@ export default function Dashboard() {
   const [allBoards, setAllBoards] = useState([]);
   const profileRef = useRef(null);
   const navigate = useNavigate();
+  const restoredLastPlaceRef = useRef(false);
+
+  // Restore last place even after closing/reopening the page
+  useEffect(() => {
+    if (restoredLastPlaceRef.current) return;
+    restoredLastPlaceRef.current = true;
+
+    const isEmpty = !searchParams || searchParams.toString() === "";
+    if (!isEmpty) return;
+
+    const saved = localStorage.getItem("lastDashboardParams");
+    if (!saved) return;
+
+    setSearchParams(new URLSearchParams(saved), { replace: true });
+  }, [searchParams, setSearchParams]);
 
   // Load recent and history from localStorage
   useEffect(() => {
@@ -112,7 +128,10 @@ export default function Dashboard() {
     const params = new URLSearchParams();
     if (view && view !== "boards") params.set("view", view);
     if (boardId) params.set("boardId", boardId);
-    setSearchParams(params, { replace: true });
+    // Push a new history entry so browser Back goes to the previous in-app view,
+    // instead of jumping straight back to the login page.
+    setSearchParams(params);
+    localStorage.setItem("lastDashboardParams", params.toString());
   };
 
   const handleViewChange = (view, boardId = null) => {
@@ -168,6 +187,8 @@ export default function Dashboard() {
         return <TaskManagerView boardId={selectedBoardId} user={user} onBack={() => handleViewChange("boards")} />;
       case "alltasks":
         return <AllTasksView user={user} onBoardClick={handleBoardClick} />;
+      case "chat":
+        return <ChatView user={user} />;
       default:
         return <BoardsView onBoardClick={handleBoardClick} user={user} />;
     }
@@ -269,6 +290,19 @@ export default function Dashboard() {
                 )}
               </>
             )}
+          </div>
+
+          {/* Chat with mates */}
+          <div className="mb-4">
+            <button
+              onClick={() => handleViewChange("chat")}
+              className={`w-full text-left px-2 py-2 text-sm hover:bg-gray-200 rounded flex items-center gap-2 ${
+                currentView === "chat" ? "bg-blue-100 text-blue-700 font-medium" : ""
+              }`}
+            >
+              <MessageCircle className="w-4 h-4" />
+              Chat with mates
+            </button>
           </div>
 
           {/* All Tasks Button */}
